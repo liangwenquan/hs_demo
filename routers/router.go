@@ -19,6 +19,7 @@ func init() {
 		testGroup :=v1Group.Group("data")
 		{
 			testGroup.GET("/theme-list", testCtl.Async)
+			testGroup.GET("/lock", testCtl.Lock)
 		}
 	}
 }
