@@ -19,7 +19,7 @@ type Themes struct {
 				SecShortName string `json:"secShortName"`
 				CurPrice float64 `json:"curPrice"`
 				ChangePct float64 `json:"changePct"`
-				MarketValue int64 `json:"marketValue"`
+				MarketValue float64 `json:"marketValue"`
 				Suspension int `json:"suspension"`
 			} `json:"themeStockList"`
 		} `json:"themeEntireInfoList"`

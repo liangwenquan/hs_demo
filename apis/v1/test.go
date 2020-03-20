@@ -2,51 +2,59 @@ package v1
 
 import (
 	"crypto/md5"
+	"encoding/json"
 	"github.com/gin-gonic/gin"
 	"github.com/idoubi/goz"
 	"hs_pl/lib/redisLib"
 	"log"
+	"net/url"
 	"sync"
-	//"strconv"
 	"time"
 	"fmt"
-)
-
-const (
-	THEME_URL = "https://gw.datayes.com/rrp_adventure/mobile/whitelist/theme?size=2"
 )
 
 type TestController struct {}
 
 func (test *TestController) Async(c *gin.Context) {
+	paramUri := c.Query("rq_uri")
+	themeUri, _:= url.QueryUnescape(paramUri)
+
 	lockPre := "lock_theme_pre"
-	cacheKey := strMd5(THEME_URL)+"s"
+	cacheKey := strMd5(themeUri)
 
 	redisClient := redisLib.GetClient()
-
 	data, err:= redisClient.Get(cacheKey).Result()
 
-	fmt.Printf("T%", data)
-	ttl, _ := redisClient.TTL(cacheKey).Result()
-	log.Print(data)
+	var dataBody []byte
+	var dataMap map[string]interface{}
+
+	dataBody = []byte(data)
+	ttl, _ := redisClient.TTL("hello").Result()
+
 	if err != nil {
 		ttl = 3600 * 1e9;
-		data = fetchGwTheme(lockPre, cacheKey, THEME_URL)
+		dataBody = fetchGwTheme(lockPre, cacheKey, themeUri)
+	}
+
+	if err := json.Unmarshal(dataBody, &dataMap); err != nil {
+		log.Print(err)
+		log.Print("parse to map 失败")
 	}
 
 	if uint64(ttl)/1e9 <= 1000 {
-		go fetchGwTheme(lockPre, cacheKey, THEME_URL)
+		log.Print("不晓事")
+		go fetchGwTheme(lockPre, cacheKey, themeUri)
 	}
 
 	c.JSON(200, gin.H{
 		"code":      200,
-		"data":      data,
+		"data":      dataMap,
 		"msg":       "success",
 		"timestamp": time.Now().Unix(),
 	})
 }
 
-func (text *TestController) Lock(c *gin.Context) {
+func (test *TestController) Lock(c *gin.Context) {
 	go func() {
 		lockName := "lock:test"
 		acquireTimeOut := 9 * time.Minute
@@ -76,7 +84,7 @@ func (text *TestController) Lock(c *gin.Context) {
 	})
 }
 
-func fetchGwTheme(lockPre string, cacheKey string, url string) string {
+func fetchGwTheme(lockPre string, cacheKey string, url string) []byte {
 	cli := goz.NewClient()
 	resp, err := cli.Get(url)
 	if err != nil {
@@ -94,18 +102,17 @@ func fetchGwTheme(lockPre string, cacheKey string, url string) string {
 			log.Print(err)
 		}
 		if success {
-			redisLib.GetClient().Set(cacheKey, body, 10 * 1e9).Err()
+			redisLib.GetClient().Set(cacheKey, contents, 3600 * 1e9).Err()
 			log.Print("已更新缓存")
 		}
 	}
 
-	return contents
+	return body
 }
 
 func strMd5(str string) string {
 	data := []byte(str)
 	hash := md5.Sum(data)
-
 	md5str := fmt.Sprintf("%x", hash)
 
 	return md5str
